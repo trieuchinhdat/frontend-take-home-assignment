@@ -1,6 +1,7 @@
 import type { SVGProps } from 'react'
 
 import * as Checkbox from '@radix-ui/react-checkbox'
+import { useAutoAnimate } from '@formkit/auto-animate/react'
 
 import { api } from '@/utils/client/api'
 
@@ -63,18 +64,57 @@ import { api } from '@/utils/client/api'
  *  - https://auto-animate.formkit.com
  */
 
-export const TodoList = () => {
+interface ITodo {
+  statuses: ('pending' | 'completed')[]
+}
+export const TodoList = ({ statuses }: ITodo) => {
   const { data: todos = [] } = api.todo.getAll.useQuery({
-    statuses: ['completed', 'pending'],
+    statuses,
   })
+  const apiContext = api.useContext()
+  const [animationParent] = useAutoAnimate()
 
+  const { mutate: deleteTodo, isLoading: isDeletingTodo } =
+    api.todo.delete.useMutation({
+      onSuccess: () => {
+        apiContext.todo.getAll.refetch()
+      },
+    })
+
+  const { mutate: updateTodo, isLoading: isUpdetingTodo } =
+    api.todoStatus.update.useMutation({
+      onSuccess: () => {
+        apiContext.todo.getAll.refetch()
+      },
+    })
+  const handleDeleteTodo = (id: number) => {
+    deleteTodo({ id })
+  }
+  const handleUpdateTodo = (checked: string | boolean, id: number) => {
+    !checked
+      ? updateTodo({
+          todoId: id,
+          status: 'pending',
+        })
+      : updateTodo({
+          todoId: id,
+          status: 'completed',
+        })
+  }
   return (
-    <ul className="grid grid-cols-1 gap-y-3">
+    <ul className="grid grid-cols-1 gap-y-3" ref={animationParent}>
       {todos.map((todo) => (
         <li key={todo.id}>
-          <div className="flex items-center rounded-12 border border-gray-200 px-4 py-3 shadow-sm">
+          <div
+            className={`${
+              todo.status === 'completed' && 'bg-gray-50'
+            } flex items-center rounded-12 border border-gray-200 px-4 py-3 shadow-sm`}
+          >
             <Checkbox.Root
               id={String(todo.id)}
+              onCheckedChange={(checked) => handleUpdateTodo(checked, todo.id)}
+              checked={todo.status === 'completed'}
+              disabled={isUpdetingTodo}
               className="flex h-6 w-6 items-center justify-center rounded-6 border border-gray-300 focus:border-gray-700 focus:outline-none data-[state=checked]:border-gray-700 data-[state=checked]:bg-gray-700"
             >
               <Checkbox.Indicator>
@@ -82,9 +122,22 @@ export const TodoList = () => {
               </Checkbox.Indicator>
             </Checkbox.Root>
 
-            <label className="block pl-3 font-medium" htmlFor={String(todo.id)}>
+            <label
+              className={`block pl-3 font-medium ${
+                todo.status === 'completed' && 'line-through'
+              }`}
+              htmlFor={String(todo.id)}
+            >
               {todo.body}
             </label>
+            <button
+              className="ml-auto p-1"
+              aria-label="Delete todo"
+              onClick={() => handleDeleteTodo(todo.id)}
+              disabled={isDeletingTodo}
+            >
+              <XMarkIcon focusable={false} className="h-7 w-7 text-gray-700" />
+            </button>
           </div>
         </li>
       ))}
